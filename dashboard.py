@@ -17,7 +17,7 @@ st.markdown("Painel de controle em tempo real para monitoramento e gestão de ac
 # Sidebar com status da API
 st.sidebar.header("Status do Sistema")
 try:
-    res = requests.get(f"{API_URL}/health", timeout=2) # Ajuste a rota se necessário (ex: /)
+    res = requests.get(f"{API_URL}/", timeout=2) # Ajuste a rota se necessário (ex: /)
     if res.status_code == 200:
         st.sidebar.success("API Online 🟢")
     else:
@@ -56,10 +56,19 @@ with tab2:
     with col_action:
         action = st.selectbox("Ação", ["BLOQUEAR", "LIBERAR"])
     with col_btn:
-        st.write("") # Espaçamento vertical
+        st.write("")
         st.write("")
         if st.button("Aplicar Regra"):
-            st.success(f"Regra [{action}] enviada com sucesso para o IP {target_ip}!")
+            payload = {"ip": target_ip, "action": action.lower()}
+            try:
+                # Dispara a requisição POST para a rota de ACL da API
+                response = requests.post(f"{API_URL}/acl", json=payload, timeout=3)
+                if response.status_code == 200:
+                    st.success(f"Regra [{action}] aplicada com sucesso para {target_ip}!")
+                else:
+                    st.error(f"Erro ao aplicar regra: {response.status_code}")
+            except Exception as e:
+                st.error(f"Falha de conexão com a API: {e}")
 
 with tab3:
     st.subheader("Dispositivos e Chaves WireGuard")
