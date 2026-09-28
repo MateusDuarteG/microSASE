@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  microsase:
+    build: .
+    container_name: microsase_app
+    ports:
+      - "8000:8000"  # API
+      - "8501:8501"  # Dashboard Streamlit
+    cap_add:
+      - NET_ADMIN    # Permite manipular tabelas de rotas e firewall Linux (iptables/WireGuard)
+    volumes:
+      - .:/app
+    restart: unless-stopped
