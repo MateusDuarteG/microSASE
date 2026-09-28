@@ -1,5 +1,5 @@
-# Imagem base oficial do Python em ambiente Linux
-FROM python:3.10-slim
+# Imagem base oficial do Python 3.11
+FROM python:3.11-slim
 
 # Instala ferramentas de rede e WireGuard no container Linux
 RUN apt-get update && apt-get install -y \
