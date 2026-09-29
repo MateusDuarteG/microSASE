@@ -48,25 +48,45 @@ with tab1:
 
 with tab2:
     st.subheader("Gerenciamento de Regras de Acesso (ACL)")
-    st.info("Altere o status de acesso em tempo real via chamadas de API.")
+    st.info("Altere o status de acesso em tempo real via chamadas de API. Aceita endereços IP e URLs/Domínios.")
     
-    col_ip, col_action, col_btn = st.columns([3, 2, 2])
-    with col_ip:
-        target_ip = st.text_input("IP do Alvo", value="10.0.0.2")
+    col_target, col_action, col_btn = st.columns([3, 2, 2])
+    
+    with col_target:
+        # Alterado de "IP do Alvo" para aceitar IPs ou URLs
+        target_input = st.text_input("IP ou URL/Domínio do Alvo", value="10.0.0.2", help="Exemplos: 10.0.0.2, facebook.com, site-malicioso.com")
+        
     with col_action:
         action = st.selectbox("Ação", ["BLOQUEAR", "LIBERAR"])
+        
     with col_btn:
         st.write("")
         st.write("")
         if st.button("Aplicar Regra"):
-            payload = {"ip": target_ip, "action": action.lower()}
+            # Mapeia a ação do selectbox para o padrão esperado no backend
+            action_code = "BLOCK" if action == "BLOQUEAR" else "ALLOW"
+            
+            # Limpeza rápida de protocolo caso colado direto da barra do navegador
+            target_clean = target_input.replace("https://", "").replace("http://", "").strip().split('/')[0]
+            
+            # Payload ajustado conforme o schema ACLCreate do main.py
+            payload = {
+                "peer_id": 1,
+                "destination_ip": target_clean,
+                "destination_port": 0,
+                "protocol": "ALL",
+                "action": action_code,
+                "description": f"Regra aplicada via Dashboard para {target_clean}"
+            }
+            
             try:
-                # Dispara a requisição POST para a rota de ACL da API
-                response = requests.post(f"{API_URL}/acl", json=payload, timeout=3)
+                # Ajustada a rota para /acls/add correspondente ao main.py
+                response = requests.post(f"{API_URL}/acls/add", json=payload, timeout=5)
+                
                 if response.status_code == 200:
-                    st.success(f"Regra [{action}] aplicada com sucesso para {target_ip}!")
+                    st.success(f"Regra [{action}] aplicada com sucesso para '{target_clean}'!")
                 else:
-                    st.error(f"Erro ao aplicar regra: {response.status_code}")
+                    st.error(f"Erro ao aplicar registro: {response.status_code} - {response.text}")
             except Exception as e:
                 st.error(f"Falha de conexão com a API: {e}")
 

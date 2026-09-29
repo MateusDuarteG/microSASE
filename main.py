@@ -40,11 +40,11 @@ class PeerCreate(BaseModel):
     allocated_ip: str
 
 class ACLCreate(BaseModel):
-    peer_id: int
-    destination_ip: str
+    peer_id: Optional[int] = 1  # ID padrão do peer
+    destination_ip: str  # Pode ser um IP (10.0.0.2) ou Domínio/URL (ex: facebook.com)
     destination_port: Optional[int] = 0
     protocol: Optional[str] = "ALL"
-    action: Optional[str] = "ALLOW"
+    action: Optional[str] = "BLOCK"  # "BLOCK" ou "ALLOW"
     description: Optional[str] = ""
 
 # ----------------------------------------------------------------------
@@ -112,19 +112,25 @@ def create_peer(peer_data: PeerCreate):
 # 3. Adicionar Regra de Acesso Zero Trust (ACL)
 @app.post("/acls/add")
 def add_acl(acl: ACLCreate):
+    # Tratamento simples caso o usuário digite com http:// ou https://
+    target_clean = acl.destination_ip.replace("https://", "").replace("http://", "").strip().split('/')[0]
+
     database.add_acl_rule(
         peer_id=acl.peer_id,
-        destination_ip=acl.destination_ip,
+        destination_ip=target_clean,
         destination_port=acl.destination_port,
         protocol=acl.protocol,
-        action=acl.action,
-        description=acl.description
+        action=acl.action.upper(),
+        description=acl.description or f"Bloqueio de {target_clean}"
     )
 
-    # Sincroniza o Firewall (iptables) imediatamente com a nova regra
+    # Sincroniza o Firewall (iptables/CoreDNS) com a nova regra
     acl_engine.sync_acls()
 
-    return {"status": "success", "message": "Regra Zero Trust aplicada no Firewall com sucesso!"}
+    return {
+        "status": "success", 
+        "message": f"Regra [{acl.action.upper()}] aplicada para '{target_clean}' no Firewall com sucesso!"
+    }
 
 # 4. Kill Switch / Alternar Status do Peer
 @app.post("/peers/{peer_id}/toggle")
