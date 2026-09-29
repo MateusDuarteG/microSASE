@@ -48,16 +48,16 @@ class ACLEngine:
         conn = get_connection()
         cursor = conn.cursor()
 
+        # LEFT JOIN para não perder regras cujo peer_id não esteja vinculado diretamente
         query = """
             SELECT 
-                p.allocated_ip,
+                COALESCE(p.allocated_ip, '0.0.0.0/0') as allocated_ip,
                 a.destination_ip,
                 a.destination_port,
                 a.protocol,
                 a.action
             FROM acls a
-            JOIN peers p ON a.peer_id = p.id
-            WHERE p.is_active = 1
+            LEFT JOIN peers p ON a.peer_id = p.id
         """
         cursor.execute(query)
         rules = [dict(row) for row in cursor.fetchall()]
@@ -66,17 +66,25 @@ class ACLEngine:
         for rule in rules:
             self._apply_rule_to_iptables(rule)
 
-        self._run_cmd(["iptables", "-A", CHAIN_NAME, "-i", self.wg_interface, "-j", "DROP"])
-        logging.info("✅ Sincronização de ACLs/Firewall concluída (Default DROP).")
+        logging.info("✅ Sincronização de ACLs/Firewall concluída.")
 
     def _apply_rule_to_iptables(self, rule: Dict[str, Any]):
-        source_ip = f"{rule['allocated_ip']}/32"
+        source_ip = rule['allocated_ip']
+        if source_ip != '0.0.0.0/0' and not source_ip.endswith('/32'):
+            source_ip = f"{source_ip}/32"
+
         dest_ip = rule['destination_ip']
         protocol = rule['protocol'].lower()
         port = rule['destination_port']
         target = "ACCEPT" if rule['action'].upper() == "ALLOW" else "DROP"
 
-        cmd = ["iptables", "-A", CHAIN_NAME, "-s", source_ip, "-d", dest_ip]
+        # Monta o comando básico do iptables
+        cmd = ["iptables", "-A", CHAIN_NAME]
+        
+        if source_ip != '0.0.0.0/0':
+            cmd.extend(["-s", source_ip])
+            
+        cmd.extend(["-d", dest_ip])
 
         if protocol in ["tcp", "udp"] and port > 0:
             cmd.extend(["-p", protocol, "--dport", str(port)])
@@ -85,3 +93,5 @@ class ACLEngine:
 
         cmd.extend(["-j", target])
         self._run_cmd(cmd)
+
+    
